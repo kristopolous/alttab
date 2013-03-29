@@ -35,6 +35,8 @@ use strict;
 use warnings;
 use IO::Pty::Easy;
 use IO::Handle;
+use File::Temp  qw/ tempfile tempdir /;
+use POSIX qw(mkfifo);
 
 ##########################
 # Configuration          #
@@ -80,7 +82,7 @@ if (!defined $id) {
 	exit(1);
 }
 
-print "Keyboard ID: $id\n";
+# print "Keyboard ID: $id\n";
 
 # Track state of modifier keys.
 our %mod = (
@@ -97,59 +99,86 @@ $tty->spawn("xinput test $id");
 
 my $string = "";
 my @clientList;
+my $lastWindow = "";
 
-my $lastWindow;
+my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
+my @windowList = split(/\n/, $windowRaw);
+my %byId = ();
+
+foreach(@windowList) {
+  my ($id, $string) = $_ =~ /(0x[0-9a-f]*)(.*)/;
+  $byId{$id} = $string;
+}
+
+`[ -e /tmp/alttab ] || mkfifo /tmp/alttab`;
+
+system("cat /tmp/alttab | osd_cat -l 1 -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -c '#AcAaAA' -S '#000000' -s 4 -O 2 -u '#7c8878'&");
+open(my $screen, ">>", "/tmp/alttab");
+binmode( $screen, ":utf8" );
 
 sub doMap {
   $lastWindow = $_[0];
-  `xdotool windowmap $_[0]` 
+  `xdotool windowmap $_[0]`;
 }
 
 sub doUnmap {
   `xdotool windowminimize $_[0]`;
 }
 
+
 sub findWindow {
   my $string = "";
   my $id = "";
 
-  my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
-  my @windowList = split(/\n/, $windowRaw);
-
-  my %byId = ();
-  foreach(@windowList) {
-    my ($id, $string) = $_ =~ /(0x[0-9a-f]*)(.*)/;
-    $byId{$id} = $string;
-  }
-
-  my %match = ();
   my $window = "";
   my $search = "";
+  my $hide = 0;
+  my $kill = 0;
   my $query = $_[0];
+
   if (length($query) == 0) {
     $query = '.';
   }
+  $lastWindow = "";
+
+  if (substr($query, 0 , 1) eq '!') {
+    $query = substr($query, 1);
+    $hide = 1;
+  }
+
+  if (substr($query, -2) eq '-9') {
+    $query = substr($query, 0, -2);
+    $kill = 1;
+  }
+    
   while( ($window, $search) = each(%byId) ) {
     if ( $search =~ /$query/i ) {
-      $match{$window} = $search;
-      doMap $window
-    } else {
-      doUnmap $window
+      if ($kill == 1) {
+        `xkill -id $window`;
+      } else {
+        doMap $window;
+      }
+    } elsif ($hide == 1) {
+      doUnmap $window;
     }
   }
-  `xdotool windowfocus root`;
-  return %match;
+  if ($lastWindow ne "") {
+    `xdotool windowraise $lastWindow`;
+  }
+  `xdotool windowfocus --sync root`;
 }
 
 sub onScreen {
   $string = $_[0];
   if (length($string) > 1) {
-    my %match = findWindow $string;
+    findWindow $string;
   }
-  `pkill osd_cat`;
-  system("echo '$_[0]'_ | osd_cat -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -p middle -A center -c '#AcAaAA' -S '#000000' -s 4 -O 2 -u '#7c8878'&");
+  print $screen "${string}_\n";
+  flush $screen;
 }
 
+my $startWindow = `xdotool getwindowfocus`;
+`xdotool windowfocus --sync root`;
 onScreen "";
 
 while ($tty->is_active) {
@@ -179,40 +208,18 @@ sub event {
       onScreen $string . $key;
     } elsif ($key =~ 'bs') {
       onScreen substr $string, 0, -1;
-    } elsif ($key =~ 'ret') {
+    } elsif ($key =~ 'ret' or $key =~ 'es') {
       `pkill osd_cat`;
+      if($lastWindow eq "") {
+        $lastWindow = $startWindow;
+      }
       print $lastWindow;
       `xdotool windowraise $lastWindow`;
       `xdotool windowfocus --sync $lastWindow`;
+      close($screen);
       exit(0);
     }
   }
-
-	# Log it?
-	if ($event eq "release" || ($event eq "press" && $conf->{log_keydown}) ||
-	($key =~ /^\{(Shift|Ctrl|Alt|Super)\}$/)) {
-		my @time = localtime(time());
-		my $ts = join(" ",
-			join("-",
-				sprintf("%4d", $time[5] + 1900),
-				sprintf("%2d", $time[4] + 1),
-				sprintf("%2d", $time[3]),
-			),
-			join(":",
-				sprintf("%2d", $time[2]),
-				sprintf("%2d", $time[1]),
-				sprintf("%2d", $time[0]),
-			),
-		);
-
-		open (my $log, ">>", $conf->{logfile});
-		print $log "[$ts] "
-			. ($event eq "release" ? "<Release>" : "<Press>")
-			. " "
-			. ($key eq " " ? "{space}" : $key)
-			. "\n";
-		close ($log);
-	}
 }
 
 # QWERTY keysym finder
@@ -327,7 +334,7 @@ sub kbd_qwerty {
 		96 => '{F12}',
 
 		# Misc
-		9  => '{Esc}',
+		9  => 'es',
 		22 => 'bs',
 		77 => '{Num Lock}',
 		107 => '{Print Scr}',
@@ -348,7 +355,6 @@ sub kbd_qwerty {
 
 	if (exists $keys{$sym}) {
 		if (ref($keys{$sym})) {
-			print "(shift key: $mod{shift})\n";
 			if ($mod{shift}) {
 				return $keys{$sym}->[1];
 			}
