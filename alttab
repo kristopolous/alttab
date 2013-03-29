@@ -100,6 +100,8 @@ $tty->spawn("xinput test $id");
 my $string = "";
 my @clientList;
 my $lastWindow = "";
+my @matchingWindows = ();
+my $matchingPtr = 0;
 
 my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
 my @windowList = split(/\n/, $windowRaw);
@@ -118,11 +120,18 @@ binmode( $screen, ":utf8" );
 
 sub doMap {
   $lastWindow = $_[0];
+  push @matchingWindows, $lastWindow;
   `xdotool windowmap $_[0]`;
 }
 
 sub doUnmap {
   `xdotool windowminimize $_[0]`;
+}
+
+sub matchReset {
+  print "HERE";
+  @matchingWindows = ();
+  $matchingPtr = 0;
 }
 
 
@@ -135,6 +144,7 @@ sub findWindow {
   my $hide = 0;
   my $kill = 0;
   my $query = $_[0];
+  matchReset;
 
   if (length($query) == 0) {
     $query = '.';
@@ -205,15 +215,21 @@ sub event {
 
   if ($event eq "press") {
     if (length($key) == 1) {
+      print "HERE\n\n[[$key]]";
       onScreen $string . $key;
-    } elsif ($key =~ 'bs') {
+    } elsif ($key eq 'bs') {
       onScreen substr $string, 0, -1;
+    } elsif ($key eq 'tb') {
+      $matchingPtr++;
+      $matchingPtr %= scalar (@matchingWindows);
+      my $winid = $matchingWindows[$matchingPtr];
+      `xdotool windowraise $winid`;
+      `xdotool windowfocus --sync root`;
     } elsif ($key =~ 'ret' or $key =~ 'es') {
       `pkill osd_cat`;
       if($lastWindow eq "") {
         $lastWindow = $startWindow;
       }
-      print $lastWindow;
       `xdotool windowraise $lastWindow`;
       `xdotool windowfocus --sync $lastWindow`;
       close($screen);
@@ -349,7 +365,7 @@ sub kbd_qwerty {
 		113 => '{Left}',
 		114 => '{Right}',
 		135 => '{Menu}',
-		23  => '{Tab}',
+		23  => 'tb',
 		66  => '{Caps Lock}',
 	);
 

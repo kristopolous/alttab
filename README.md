@@ -9,3 +9,4 @@ Prefacing your query with a
 
 Placing the following after your query:
  * -9 will kill the matching windows
+ * [tab] will cycle through matching windows
