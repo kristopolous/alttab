@@ -127,7 +127,6 @@ sub doUnmap {
 }
 
 sub matchReset {
-  print "HERE";
   @matchingWindows = ();
   $matchingPtr = 0;
 }
@@ -148,8 +147,8 @@ sub findWindow {
     $query = '.';
   }
 
-  if (substr($query, 0 , 1) eq '!') {
-    $query = substr($query, 1);
+  if (substr($query, -1) eq '!') {
+    $query = substr($query, 0, -1);
     $hide = 1;
   }
 
@@ -181,11 +180,10 @@ sub onScreen {
   if (length($string) > 1) {
     findWindow $string;
   }
-  print $screen "${string}_\n";
-  flush $screen;
 }
 
 my $startWindow = `xdotool getwindowfocus`;
+my $startCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
 `xdotool windowfocus --sync root`;
 onScreen "";
 
@@ -202,18 +200,33 @@ while ($tty->is_active) {
 }
 
 
+sub doExit {
+      if(scalar (@matchingWindows) > 0) {
+        $startWindow = $matchingWindows[$matchingPtr];
+      }
+      system("pkill osd_cat; xdotool windowraise $startWindow; xdotool windowfocus --sync $startWindow");
+
+      close($screen);
+      exit(0);
+}
+
 # Handle key events
 sub event {
 	my ($event,$sym) = @_;
 
 	# Only QWERTY keyboards supported.
 	my $key = kbd_qwerty($event,$sym);
+  my $curCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
+  print $curCoor;
+
+  if ($curCoor ne $startCoor) {
+    doExit;
+  }
 
 	print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
 
   if ($event eq "press") {
     if (length($key) == 1) {
-      print "HERE\n\n[[$key]]";
       onScreen $string . $key;
     } elsif ($key eq 'bs') {
       onScreen substr $string, 0, -1;
@@ -224,14 +237,10 @@ sub event {
       `xdotool windowraise $winid`;
       `xdotool windowfocus --sync root`;
     } elsif ($key =~ 'ret' or $key =~ 'es') {
-      if(scalar (@matchingWindows) > 0) {
-        $startWindow = $matchingWindows[$matchingPtr];
-      }
-      system("pkill osd_cat; xdotool windowraise $startWindow; xdotool windowfocus --sync $startWindow");
-
-      close($screen);
-      exit(0);
+      doExit;
     }
+    print $screen "${string}_\n";
+    flush $screen;
   }
 }
 
