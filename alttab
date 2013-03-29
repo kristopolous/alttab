@@ -94,7 +94,7 @@ our %mod = (
 
 # Begin watching. Make a pseudo TTY for this so xinput believes we're a shell.
 my $tty = IO::Pty::Easy->new();
-print "Watching `xinput test $id`\n";
+#print "Watching `xinput test $id`\n";
 $tty->spawn("xinput test $id");
 
 my $string = "";
@@ -138,7 +138,9 @@ sub doExit {
   if(scalar (@matchingWindows) > 0) {
     $startWindow = $matchingWindows[$matchingPtr];
   }
-  system("pkill osd_cat; xdotool windowraise $startWindow; xdotool windowfocus --sync $startWindow");
+  system("pkill osd_cat");
+  system("xdotool windowraise $startWindow");
+  system("xdotool windowfocus --sync $startWindow");
 
   close($screen);
   exit(0);
@@ -224,7 +226,6 @@ sub event {
 	# Only QWERTY keyboards supported.
 	my $key = kbd_qwerty($event,$sym);
   my $curCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
-  print $curCoor;
 
   if ($curCoor ne $startCoor) {
     doExit;
