@@ -99,7 +99,6 @@ $tty->spawn("xinput test $id");
 
 my $string = "";
 my @clientList;
-my $lastWindow = "";
 my @matchingWindows = ();
 my $matchingPtr = 0;
 
@@ -119,8 +118,7 @@ open(my $screen, ">>", "/tmp/alttab");
 binmode( $screen, ":utf8" );
 
 sub doMap {
-  $lastWindow = $_[0];
-  push @matchingWindows, $lastWindow;
+  push @matchingWindows, $_[0];
   `xdotool windowmap $_[0]`;
 }
 
@@ -149,7 +147,6 @@ sub findWindow {
   if (length($query) == 0) {
     $query = '.';
   }
-  $lastWindow = "";
 
   if (substr($query, 0 , 1) eq '!') {
     $query = substr($query, 1);
@@ -172,8 +169,9 @@ sub findWindow {
       doUnmap $window;
     }
   }
-  if ($lastWindow ne "") {
-    `xdotool windowraise $lastWindow`;
+  if (scalar(@matchingWindows) > 0) {
+    my $winid = $matchingWindows[$matchingPtr];
+    `xdotool windowraise $winid`;
   }
   `xdotool windowfocus --sync root`;
 }
@@ -226,12 +224,11 @@ sub event {
       `xdotool windowraise $winid`;
       `xdotool windowfocus --sync root`;
     } elsif ($key =~ 'ret' or $key =~ 'es') {
-      `pkill osd_cat`;
-      if($lastWindow eq "") {
-        $lastWindow = $startWindow;
+      if(scalar (@matchingWindows) > 0) {
+        $startWindow = $matchingWindows[$matchingPtr];
       }
-      `xdotool windowraise $lastWindow`;
-      `xdotool windowfocus --sync $lastWindow`;
+      system("pkill osd_cat; xdotool windowraise $startWindow; xdotool windowfocus --sync $startWindow");
+
       close($screen);
       exit(0);
     }
