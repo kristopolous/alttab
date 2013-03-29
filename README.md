@@ -8,3 +8,4 @@ Placing the following after your query:
  * ! will iconify the windows that don't match.
  * -9 will kill the matching windows.
  * [tab] will cycle through matching windows.
+ * & will execute the program
