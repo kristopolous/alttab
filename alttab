@@ -15,39 +15,33 @@ use POSIX qw(mkfifo);
 # X11 display.
 $ENV{DISPLAY} ||= ":0.0";
 
-# Make sure we have xinput.
-if (system("which xinput > /dev/null") != 0) {
-	print "You require the `xinput` command for this keylogger to work.\n";
-	exit(1);
-}
-
 # Get the input list.
 my @inputs = `xinput list`;
 
 # Find the AT keyboard.
 my $id;
 foreach my $line (@inputs) {
-	$line =~ s/^[\s\t]+//g;
-	$line =~ s/[\s\t]+$//g;
-	$line =~ s/[\x0D\x0A]+//g;
-	next unless length $line;
-	if ($line =~ /keyboard/i && $line =~ /. AT/) {
-		($id) = ($line =~ /id=(\d+)/)[0];
-	}
+  $line =~ s/^[\s\t]+//g;
+  $line =~ s/[\s\t]+$//g;
+  $line =~ s/[\x0D\x0A]+//g;
+  next unless length $line;
+  if ($line =~ /keyboard/i && $line =~ /. AT/) {
+    ($id) = ($line =~ /id=(\d+)/)[0];
+  }
 }
 if (!defined $id) {
-	print "Failed to find \"AT\" keyboard ID from `xinput list`!\n";
-	exit(1);
+  print "Failed to find \"AT\" keyboard ID from `xinput list`!\n";
+  exit(1);
 }
 
 # print "Keyboard ID: $id\n";
 
 # Track state of modifier keys.
 our %mod = (
-	'shift' => 0,
-	'ctrl'  => 0,
-	'alt'   => 0,
-	'super' => 0,
+  'shift' => 0,
+  'ctrl'  => 0,
+  'alt'   => 0,
+  'super' => 0,
 );
 
 # Begin watching. Make a pseudo TTY for this so xinput believes we're a shell.
@@ -59,7 +53,6 @@ my $string = "";
 my @clientList;
 my @matchingWindows = ();
 my $matchingPtr = 0;
-
 my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
 my @windowList = split(/\n/, $windowRaw);
 my %byId = ();
@@ -75,22 +68,11 @@ foreach(@windowList) {
 
 system("cat /tmp/alttab | osd_cat -l 1 -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -c '#AcAaAA' -S '#000000' -s 4 -O 2 -u '#7c8878'&");
 open(my $screen, ">>", "/tmp/alttab");
-binmode( $screen, ":utf8" );
-
-sub doMap {
-  push @matchingWindows, $_[0];
-  `xdotool windowmap $_[0]`;
-}
-
-sub doUnmap {
-  `xdotool windowminimize $_[0]`;
-}
 
 sub matchReset {
   @matchingWindows = ();
   $matchingPtr = 0;
 }
-
 
 sub doExit {
   if(scalar (@matchingWindows) > 0) {
@@ -104,11 +86,7 @@ sub doExit {
   exit(0);
 }
 
-
 sub findWindow {
-  my $string = "";
-  my $id = "";
-
   my $window = "";
   my $search = "";
   my $hide = 0;
@@ -140,10 +118,11 @@ sub findWindow {
       if ($kill == 1) {
         `xkill -id $window`;
       } else {
-        doMap $window;
+        push @matchingWindows, $window;
+        `xdotool windowmap $window`;
       }
     } elsif ($hide == 1) {
-      doUnmap $window;
+      `xdotool windowminimize $window`;
     }
   }
   if (scalar(@matchingWindows) > 0) {
@@ -165,31 +144,30 @@ print $screen "_\n";
 flush $screen;
 
 while ($tty->is_active) {
-	my $data = $tty->read();
-	my @lines = split(/\n/, $data);
-	foreach my $line (@lines) {
-		# Key event?
-		chomp $line;
-		if ($line =~ /^key\s+(press|release)\s+(\d+)\s*?$/i) {
-			event($1, $2);
-		}
-	}
+  my $data = $tty->read();
+  my @lines = split(/\n/, $data);
+  foreach my $line (@lines) {
+    # Key event?
+    chomp $line;
+    if ($line =~ /^key\s+(press|release)\s+(\d+)\s*?$/i) {
+      event($1, $2);
+    }
+  }
 }
-
 
 # Handle key events
 sub event {
-	my ($event,$sym) = @_;
+  my ($event,$sym) = @_;
 
-	# Only QWERTY keyboards supported.
-	my $key = kbd_qwerty($event,$sym);
+  # Only QWERTY keyboards supported.
+  my $key = kbd_qwerty($event,$sym);
   my $curCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
 
   if ($curCoor ne $startCoor) {
     doExit;
   }
 
-	print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
+  print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
 
   if ($event eq "press") {
     if (length($key) == 1) {
@@ -212,147 +190,147 @@ sub event {
 
 # QWERTY keysym finder
 sub kbd_qwerty {
-	my ($event,$sym) = @_;
+  my ($event,$sym) = @_;
 
-	# Modifier keys.
-	my %modkeys = (
-		50  => 'shift', # L Shift
-		62  => 'shift', # R Shift
-		37  => 'ctrl',  # L Ctrl
-		105 => 'ctrl',  # R Ctrl
-		64  => 'alt',   # L Alt
-		108 => 'alt',   # R Alt
-		133 => 'super', # L Super
-	);
-	if (exists $modkeys{$sym}) {
-		my $name = $modkeys{$sym};
-		$mod{$name} = $event eq "press" ? 1 : 0;
-		return "{\u$name}";
-	}
+  # Modifier keys.
+  my %modkeys = (
+    50  => 'shift', # L Shift
+    62  => 'shift', # R Shift
+    37  => 'ctrl',  # L Ctrl
+    105 => 'ctrl',  # R Ctrl
+    64  => 'alt',   # L Alt
+    108 => 'alt',   # R Alt
+    133 => 'super', # L Super
+  );
+  if (exists $modkeys{$sym}) {
+    my $name = $modkeys{$sym};
+    $mod{$name} = $event eq "press" ? 1 : 0;
+    return "{\u$name}";
+  }
 
-	# Qwerty keys.
-	my %keys = (
-		# qwerty row
-		24 => [ 'q', 'Q' ], # normal, shift key
-		25 => [ 'w', 'W' ],
-		26 => [ 'e', 'E' ],
-		27 => [ 'r', 'R' ],
-		28 => [ 't', 'T' ],
-		29 => [ 'y', 'Y' ],
-		30 => [ 'u', 'U' ],
-		31 => [ 'i', 'I' ],
-		32 => [ 'o', 'O' ],
-		33 => [ 'p', 'P' ],
-		34 => [ '[', '{' ],
-		35 => [ ']', '}' ],
-		51 => [ "\\", '|' ],
+  # Qwerty keys.
+  my %keys = (
+    # qwerty row
+    24 => [ 'q', 'Q' ], # normal, shift key
+    25 => [ 'w', 'W' ],
+    26 => [ 'e', 'E' ],
+    27 => [ 'r', 'R' ],
+    28 => [ 't', 'T' ],
+    29 => [ 'y', 'Y' ],
+    30 => [ 'u', 'U' ],
+    31 => [ 'i', 'I' ],
+    32 => [ 'o', 'O' ],
+    33 => [ 'p', 'P' ],
+    34 => [ '[', '{' ],
+    35 => [ ']', '}' ],
+    51 => [ "\\", '|' ],
 
-		# asdf row
-		38 => [ 'a', 'A' ],
-		39 => [ 's', 'S' ],
-		40 => [ 'd', 'D' ],
-		41 => [ 'f', 'F' ],
-		42 => [ 'g', 'G' ],
-		43 => [ 'h', 'H' ],
-		44 => [ 'j', 'J' ],
-		45 => [ 'k', 'K' ],
-		46 => [ 'l', 'L' ],
-		47 => [ ';', ':' ],
-		48 => [ '"', "'" ],
-		36 => "ret",
+    # asdf row
+    38 => [ 'a', 'A' ],
+    39 => [ 's', 'S' ],
+    40 => [ 'd', 'D' ],
+    41 => [ 'f', 'F' ],
+    42 => [ 'g', 'G' ],
+    43 => [ 'h', 'H' ],
+    44 => [ 'j', 'J' ],
+    45 => [ 'k', 'K' ],
+    46 => [ 'l', 'L' ],
+    47 => [ ';', ':' ],
+    48 => [ '"', "'" ],
+    36 => "ret",
 
-		# zxcv row
-		52 => [ 'z', 'Z' ],
-		53 => [ 'x', 'X' ],
-		54 => [ 'c', 'C' ],
-		55 => [ 'v', 'V' ],
-		56 => [ 'b', 'B' ],
-		57 => [ 'n', 'N' ],
-		58 => [ 'm', 'M' ],
-		59 => [ ',', '<' ],
-		60 => [ '.', '>' ],
-		61 => [ '/', '?' ],
+    # zxcv row
+    52 => [ 'z', 'Z' ],
+    53 => [ 'x', 'X' ],
+    54 => [ 'c', 'C' ],
+    55 => [ 'v', 'V' ],
+    56 => [ 'b', 'B' ],
+    57 => [ 'n', 'N' ],
+    58 => [ 'm', 'M' ],
+    59 => [ ',', '<' ],
+    60 => [ '.', '>' ],
+    61 => [ '/', '?' ],
 
-		# number row
-		49 => [ '`', '~' ],
-		10 => [ '1', '!' ],
-		11 => [ '2', '@' ],
-		12 => [ '3', '#' ],
-		13 => [ '4', '$' ],
-		14 => [ '5', '%' ],
-		15 => [ '6', '^' ],
-		16 => [ '7', '&' ],
-		17 => [ '8', '*' ],
-		18 => [ '9', '(' ],
-		19 => [ '0', ')' ],
-		20 => [ '-', '_' ],
-		21 => [ '+', '=' ],
+    # number row
+    49 => [ '`', '~' ],
+    10 => [ '1', '!' ],
+    11 => [ '2', '@' ],
+    12 => [ '3', '#' ],
+    13 => [ '4', '$' ],
+    14 => [ '5', '%' ],
+    15 => [ '6', '^' ],
+    16 => [ '7', '&' ],
+    17 => [ '8', '*' ],
+    18 => [ '9', '(' ],
+    19 => [ '0', ')' ],
+    20 => [ '-', '_' ],
+    21 => [ '+', '=' ],
 
-		# space bar
-		65 => ' ',
+    # space bar
+    65 => ' ',
 
-		# number pad
-		90 => '0',
-		87 => '1',
-		88 => '2',
-		89 => '3',
-		83 => '4',
-		84 => '5',
-		85 => '6',
-		79 => '7',
-		80 => '8',
-		81 => '9',
-		106 => '/',
-		63  => '*',
-		82  => '-',
-		86  => '+',
+    # number pad
+    90 => '0',
+    87 => '1',
+    88 => '2',
+    89 => '3',
+    83 => '4',
+    84 => '5',
+    85 => '6',
+    79 => '7',
+    80 => '8',
+    81 => '9',
+    106 => '/',
+    63  => '*',
+    82  => '-',
+    86  => '+',
 
-		# F keys
-		67 => '{F1}',
-		68 => '{F2}',
-		69 => '{F3}',
-		70 => '{F4}',
-		71 => '{F5}',
-		72 => '{F6}',
-		73 => '{F7}',
-		74 => '{F8}',
-		75 => '{F9}',
-		76 => '{F10}',
-		95 => '{F11}',
-		96 => '{F12}',
+    # F keys
+    67 => 'f1',
+    68 => 'f2',
+    69 => 'f3',
+    70 => 'f4',
+    71 => 'f5',
+    72 => 'f6',
+    73 => 'f7',
+    74 => 'f8',
+    75 => 'f9',
+    76 => 'f10',
+    95 => 'f11',
+    96 => 'f12',
 
-		# Misc
-		9  => 'es',
-		22 => 'bs',
-		77 => '{Num Lock}',
-		107 => '{Print Scr}',
-		118 => '{Insert}',
-		119 => '{Delete}',
-		110 => '{Home}',
-		112 => '{Pg Up}',
-		117 => '{Pg Dn}',
-		115 => '{End}',
-		111 => '{Up}',
-		116 => '{Down}',
-		113 => '{Left}',
-		114 => '{Right}',
-		135 => '{Menu}',
-		23  => 'tb',
-		66  => '{Caps Lock}',
-	);
+    # Misc
+    9  => 'es',
+    22 => 'bs',
+    77 => '{Num Lock}',
+    107 => '{Print Scr}',
+    118 => '{Insert}',
+    119 => '{Delete}',
+    110 => '{Home}',
+    112 => '{Pg Up}',
+    117 => '{Pg Dn}',
+    115 => '{End}',
+    111 => '{Up}',
+    116 => '{Down}',
+    113 => '{Left}',
+    114 => '{Right}',
+    135 => '{Menu}',
+    23  => 'tb',
+    66  => '{Caps Lock}',
+  );
 
-	if (exists $keys{$sym}) {
-		if (ref($keys{$sym})) {
-			if ($mod{shift}) {
-				return $keys{$sym}->[1];
-			}
-			else {
-				return $keys{$sym}->[0];
-			}
-		}
-		return $keys{$sym};
-	}
-	else {
-		return "{Unknown: $sym}";
-	}
+  if (exists $keys{$sym}) {
+    if (ref($keys{$sym})) {
+      if ($mod{shift}) {
+        return $keys{$sym}->[1];
+      }
+      else {
+        return $keys{$sym}->[0];
+      }
+    }
+    return $keys{$sym};
+  }
+  else {
+    return "{Unknown: $sym}";
+  }
 }
