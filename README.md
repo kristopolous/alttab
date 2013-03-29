@@ -9,3 +9,7 @@ Placing the following after your query:
  * -9 will kill the matching windows.
  * [tab] will cycle through matching windows.
  * & will execute the program
+
+# Install
+
+$ sudo apt-get install libio-pty-easy-perl xdotool xosd-bin
