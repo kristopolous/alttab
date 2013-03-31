@@ -29,12 +29,6 @@ foreach my $line (@inputs) {
     ($id) = ($line =~ /id=(\d+)/)[0];
   }
 }
-if (!defined $id) {
-  print "Failed to find \"AT\" keyboard ID from `xinput list`!\n";
-  exit(1);
-}
-
-# print "Keyboard ID: $id\n";
 
 # Track state of modifier keys.
 our %mod = (
@@ -50,14 +44,13 @@ my $tty = IO::Pty::Easy->new();
 $tty->spawn("xinput test $id");
 
 my $string = "";
+my %byId = ();
 my @clientList;
 my @matchingWindows = ();
 my $matchingPtr = 0;
 my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
 my @windowList = split(/\n/, $windowRaw);
-my %byId = ();
 my $startWindow = `xdotool getwindowfocus`;
-my $startCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
 
 foreach(@windowList) {
   my ($id, $string) = $_ =~ /(0x[0-9a-f]*)(.*)/;
@@ -161,11 +154,6 @@ sub event {
 
   # Only QWERTY keyboards supported.
   my $key = kbd_qwerty($event,$sym);
-  my $curCoor = `xdotool getmouselocation | tail -1 | cut -f -2 -d " "`;
-
-  if ($curCoor ne $startCoor) {
-    doExit;
-  }
 
   print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
 
@@ -174,8 +162,15 @@ sub event {
       onScreen $string . $key;
     } elsif ($key eq 'bs') {
       onScreen substr $string, 0, -1;
-    } elsif ($key eq 'tb') {
-      $matchingPtr++;
+    } elsif (
+      ($key eq 'tb' || $key eq 'shtb')
+      and scalar(@matchingWindows) > 0
+    ) {
+      if ($key eq 'tb') {
+        $matchingPtr ++;
+      } else {
+        $matchingPtr = $matchingPtr + scalar(@matchingWindows) - 1;
+      }
       $matchingPtr %= scalar (@matchingWindows);
       my $winid = $matchingWindows[$matchingPtr];
       `xdotool windowraise $winid`;
@@ -194,18 +189,19 @@ sub kbd_qwerty {
 
   # Modifier keys.
   my %modkeys = (
-    50  => 'shift', # L Shift
-    62  => 'shift', # R Shift
+    50  => 'sh', # L Shift
+    62  => 'sh', # R Shift
     37  => 'ctrl',  # L Ctrl
     105 => 'ctrl',  # R Ctrl
     64  => 'alt',   # L Alt
     108 => 'alt',   # R Alt
     133 => 'super', # L Super
   );
+
   if (exists $modkeys{$sym}) {
     my $name = $modkeys{$sym};
     $mod{$name} = $event eq "press" ? 1 : 0;
-    return "{\u$name}";
+    return "$name";
   }
 
   # Qwerty keys.
@@ -315,13 +311,13 @@ sub kbd_qwerty {
     113 => '{Left}',
     114 => '{Right}',
     135 => '{Menu}',
-    23  => 'tb',
+    23  => ['tb', 'shtb'],
     66  => '{Caps Lock}',
   );
 
   if (exists $keys{$sym}) {
     if (ref($keys{$sym})) {
-      if ($mod{shift}) {
+      if ($mod{sh}) {
         return $keys{$sym}->[1];
       }
       else {
