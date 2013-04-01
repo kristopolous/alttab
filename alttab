@@ -59,7 +59,7 @@ foreach(@windowList) {
 
 `[ -e /tmp/alttab ] || mkfifo /tmp/alttab`;
 
-system("cat /tmp/alttab | osd_cat -l 1 -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -c '#AcAaAA' -S '#000000' -s 4 -O 2 -u '#7c8878'&");
+system("cat /tmp/alttab | osd_cat -l 1 -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -c '#000055' -S '#000000' -s 8 -O 2 -u '#aaaaff'&");
 open(my $screen, ">>", "/tmp/alttab");
 
 sub matchReset {
