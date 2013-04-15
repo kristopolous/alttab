@@ -48,6 +48,7 @@ my %byId = ();
 my @clientList;
 my @matchingWindows = ();
 my $matchingPtr = 0;
+my $lastPid = 0;
 my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
 my @windowList = split(/\n/, $windowRaw);
 my $startWindow = `xdotool getwindowfocus`;
@@ -56,11 +57,6 @@ foreach(@windowList) {
   my ($id, $string) = $_ =~ /(0x[0-9a-f]*)(.*)/;
   $byId{$id} = $string;
 }
-
-`[ -e /tmp/alttab ] || mkfifo /tmp/alttab`;
-
-system("cat /tmp/alttab | osd_cat -l 1 -f '-*-*-bold-r-*-*-96-*-*-*-*-*-*-*' -c '#000055' -S '#000000' -s 8 -O 2 -u '#aaaaff'&");
-open(my $screen, ">>", "/tmp/alttab");
 
 sub matchReset {
   @matchingWindows = ();
@@ -75,8 +71,25 @@ sub doExit {
   system("xdotool windowraise $startWindow");
   system("xdotool windowfocus --sync $startWindow");
 
-  close($screen);
   exit(0);
+}
+
+sub onScreen {
+  $string = $_[0];
+  my $oldPid = $lastPid;
+
+  my $screen;
+  open($screen, ">", "/tmp/alttab");
+  print $screen "${string}_\n";
+  close($screen);
+  if (!($lastPid = fork())){
+    exec(split(" ", "osd_cat -l 1 -f -*-*-bold-r-*-*-96-*-*-*-*-*-*-* -c #000055 -S #000000 -s 8 -O 2 -u #aaaaff /tmp/alttab"));
+    exit;
+  }
+
+  if($oldPid != 0) {
+    kill 15, $oldPid;
+  }
 }
 
 sub findWindow {
@@ -123,18 +136,15 @@ sub findWindow {
     `xdotool windowraise $winid`;
   }
   `xdotool windowfocus --sync root`;
+
+  onScreen $_[0];
 }
 
-sub onScreen {
-  $string = $_[0];
-  if (length($string) > 1) {
-    findWindow $string;
-  }
-}
+
+unlink "/tmp/alttab" if -e "/tmp/alttab";
 
 `xdotool windowfocus --sync root`;
-print $screen "_\n";
-flush $screen;
+onScreen "";
 
 while ($tty->is_active) {
   my $data = $tty->read();
@@ -158,6 +168,15 @@ sub event {
   print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
 
   if ($event eq "press") {
+    # The empty string matches all windows so that you can
+    # just do alt+tab tab tab etc...
+    # 
+    # The second condition is needed to make sure that we
+    # don't clear out the list for every alt+tab keydown
+    if ($string eq '' 
+      and scalar(@matchingWindows) == 0) {
+      findWindow ''
+    }
     if (length($key) == 1) {
       onScreen $string . $key;
     } elsif ($key eq 'bs') {
@@ -175,11 +194,10 @@ sub event {
       my $winid = $matchingWindows[$matchingPtr];
       `xdotool windowraise $winid`;
       `xdotool windowfocus --sync root`;
+      onScreen $string;
     } elsif ($key =~ 'ret' or $key =~ 'es') {
       doExit;
     }
-    print $screen "${string}_\n";
-    flush $screen;
   }
 }
 
