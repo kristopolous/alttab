@@ -178,9 +178,9 @@ sub event {
       findWindow ''
     }
     if (length($key) == 1) {
-      onScreen $string . $key;
+      findWindow $string . $key;
     } elsif ($key eq 'bs') {
-      onScreen substr $string, 0, -1;
+      findWindow substr $string, 0, -1;
     } elsif (
       ($key eq 'tb' || $key eq 'shtb')
       and scalar(@matchingWindows) > 0
