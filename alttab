@@ -95,9 +95,12 @@ sub findWindow {
   my $query = $_[0];
   matchReset;
 
+  # If there's an empty query, then make it the regex that
+  # will match everything.
   if (length($query) == 0) {
     $query = '.';
   }
+
 
   if (substr($query, -1) eq '!') {
     $query = substr($query, 0, -1);
@@ -114,16 +117,20 @@ sub findWindow {
     doExit;
   }
 
-  while( ($window, $search) = each(%byId) ) {
-    if ( $search =~ /$query/i ) {
-      if ($kill == 1) {
-        `xkill -id $window`;
-      } else {
-        push @matchingWindows, $window;
-        `xdotool windowmap $window`;
+  # Otherwise, and this is tricky, 1 character queries should
+  # be ignored so as not to match too many things.
+  if (length($query) != 1) {
+    while( ($window, $search) = each(%byId) ) {
+      if ( $search =~ /$query/i ) {
+        if ($kill == 1) {
+          `xkill -id $window`;
+        } else {
+          push @matchingWindows, $window;
+          `xdotool windowmap $window`;
+        }
+      } elsif ($hide == 1) {
+        `xdotool windowminimize $window`;
       }
-    } elsif ($hide == 1) {
-      `xdotool windowminimize $window`;
     }
   }
   if (scalar(@matchingWindows) > 0) {
