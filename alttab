@@ -93,6 +93,7 @@ sub findWindow {
   my $hide = 0;
   my $kill = 0;
   my $query = $_[0];
+  my $realquery = $_[0];
   matchReset;
 
   # If there's an empty query, then make it the regex that
@@ -100,7 +101,6 @@ sub findWindow {
   if (length($query) == 0) {
     $query = '.';
   }
-
 
   if (substr($query, -1) eq '!') {
     $query = substr($query, 0, -1);
@@ -119,7 +119,7 @@ sub findWindow {
 
   # Otherwise, and this is tricky, 1 character queries should
   # be ignored so as not to match too many things.
-  if (length($query) != 1) {
+  if (length($realquery) != 1) {
     while( ($window, $search) = each(%byId) ) {
       if ( $search =~ /$query/i ) {
         if ($kill == 1) {
