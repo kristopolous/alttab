@@ -126,7 +126,9 @@ sub findWindow {
           `xkill -id $window`;
         } else {
           push @matchingWindows, $window;
-          `xdotool windowmap $window`;
+          if(length($realquery) > 1) {
+            `xdotool windowmap $window`;
+          }
         }
       } elsif ($hide == 1) {
         `xdotool windowminimize $window`;
