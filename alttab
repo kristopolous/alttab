@@ -45,15 +45,22 @@ $tty->spawn("xinput test $id");
 
 my $string = "";
 my %byId = ();
+my %isMapped = ();
 my @clientList;
 my @matchingWindows = ();
 my $matchingPtr = 0;
 my $windowRaw = `xwininfo -root -tree | grep ^"        0" | grep -v "has no name" | sed -E 's/\\s+//'`;
 my $startWindow = sprintf("0x%x", `xdotool getwindowfocus`);
 my @windowList = split(/\n/, $windowRaw);
+my $winstate = "";
 
 foreach(@windowList) {
   my ($id, $str) = $_ =~ /(0x[0-9a-f]*)(.*)/;
+  $winstate = `xwininfo -id $id -stats | grep "Map State" | awk -F : ' { print \$2 } ' `;
+  $winstate =~ s/^\s+//;
+  $winstate =~ s/\s+$//;
+
+  $isMapped{$id} = { 'IsViewable' => 1, 'IsUnMapped' => 0 }->{$winstate};
   $byId{$id} = $str;
 }
 
@@ -130,7 +137,7 @@ sub findWindow {
             `xdotool windowmap $window`;
           }
         }
-      } elsif ($hide == 1) {
+      } elsif ($hide == 1 || $isMapped{$window} == 0) {
         `xdotool windowminimize $window`;
       }
     }
