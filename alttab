@@ -198,6 +198,15 @@ sub event {
 
   print "[$sym] $event: " . ($key eq " " ? "{space}" : $key) . "\n";
 
+  # So this style someone does
+  # alt (down)
+  # tab (down)
+  # <query>
+  # alt (up) <--- exit
+  if ($event eq "release" and $key eq "alt")  {
+    doExit;
+  }
+
   if ($event eq "press") {
     # The empty string matches all windows so that you can
     # just do alt+tab tab tab etc...
