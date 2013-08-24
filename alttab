@@ -120,8 +120,8 @@ sub findWindow {
     $query = '.';
   }
 
-  if (substr($query, -1) eq '!') {
-    $query = substr($query, 0, -1);
+  if (substr($query, 0, 1) eq '`') {
+    $query = substr($query, 1);
     $hide = 1;
   }
 
@@ -173,7 +173,6 @@ sub findWindow {
 }
 
 `xdotool windowfocus --sync root`;
-onScreen "";
 findWindow "";
 nextWindow;
 
